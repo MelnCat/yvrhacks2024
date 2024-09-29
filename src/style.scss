@@ -6,4 +6,37 @@ body {
 	margin: 0;
 	background-color: #000000;
 	background-image: url("/img/background.png");
+	color: white;
+	padding: 1em;
+}
+h1 {
+	text-align: center;
+	font-size: 8em;
+	font-family: Bahnschrift, "DIN Alternate", "Franklin Gothic Medium", "Nimbus Sans Narrow", sans-serif-condensed, sans-serif;
+	text-shadow: 16px 16px 0px black;
+	margin: 0;
+}
+.main {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 1em;
+	margin-top: 1em;
+}
+button {
+	border: 5px currentColor solid;
+	background-color: transparent;
+	font-size: 3.4em;
+	padding: 0.1em 0.5em;
+	color: white;
+	cursor: pointer;
+	transition: transform 0.1s;
+	font-weight: bold;
+	font-family: Avenir, Montserrat, Corbel, "URW Gothic", source-sans-pro, sans-serif;
+	&:hover {
+		transform: rotate(2deg);
+	}
+	&:active {
+		color: #999999;
+	}
 }

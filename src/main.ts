@@ -9,7 +9,7 @@ import { collides } from "./util";
 setup();
 
 window.addEventListener("beforeunload", event => {
-	event.preventDefault();
+	//event.preventDefault();
 });
 
 tickers.add(() => {
@@ -38,10 +38,10 @@ document.getElementById("b1")?.addEventListener("click", async () => {
 	await wait(2000);
 	await startBattle1();
 });
-document.getElementById("start")!.addEventListener("click", async () => {
+document.getElementById("start")?.addEventListener("click", async () => {
 	await setupUI();
 });
 
-document.getElementById("cache")!.addEventListener("click", async () => {
+document.getElementById("cache")?.addEventListener("click", async () => {
 	createCache();
 });

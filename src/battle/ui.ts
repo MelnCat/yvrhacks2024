@@ -5,12 +5,12 @@ import { collides } from "../util";
 export const setupUI = async() => {
 	const playerImage = document.createElement("img");
 	playerImage.src = `/img/player.png`;
-	playerImage.width = 170;
-	playerImage.height = 170;
+	playerImage.width = 180;
+	playerImage.height = 180;
 	let lastCollision = Date.now();
 	let shaking = 0;
 	const player = (await popupManager
-		.create(screen.width / 2 - 185 / 2, screen.height / 2 - 250 / 2, 185, 250, { fixedPosition: false }))
+		.create(screen.width / 2 - 200 / 2, screen.height / 2 - 270 / 2, 200, 260, { fixedPosition: false }))
 		.setup(popup => popup.win.document.body.append(playerImage))
 		.tick(async popup => {
 			if (playerData.health <= 0) {
@@ -28,7 +28,7 @@ export const setupUI = async() => {
 						location.reload();
 					});
 			}
-			if (shaking > 0) {
+			if (false && shaking > 0) {
 				shaking--;
 				popup.move(popup.x + (shaking % 2 === 0 ? -10 : 10), popup.y);
 			}
