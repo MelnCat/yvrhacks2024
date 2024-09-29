@@ -1,24 +1,43 @@
 import { pageOffsetY, screenHeight, screenWidth } from "./constants";
+import { obstacles } from "./game";
 
 export const tickers = new Set<(delta: number) => void>();
-export const popupMananger = {
+export const waiters = new Set<{ time: number; cb: () => void }>();
+
+export const wait = (time: number) => new Promise(res => waiters.add({ time: Date.now() + time, cb: () => res(null) }));
+
+export const createTempTicker = (tick: (time: number, stop: () => void) => void) => {
+	return new Promise(res => {
+		const startTime = Date.now();
+		const ticker = () =>
+			tick(Date.now() - startTime, () => {
+				tickers.delete(ticker);
+				res(null);
+			});
+		tickers.add(ticker);
+	});
+};
+
+export const popupManager = {
 	popups: new Set<Popup>(),
-	create(
-		x: number,
-		y: number,
-		width: number,
-		height: number,
-		options: Partial<PopupOptions> = {}
-	) {
-		const popup = new Popup(x, y, width, height, options);
+	create(x: number, y: number, width: number, height: number, options: Partial<PopupOptions> = {}): Promise<Popup> {
+		const popup = new Popup(Math.floor(x), Math.floor(y), Math.floor(width), Math.floor(height), options);
 		this.popups.add(popup);
-		return popup;
+		return new Promise(res => {
+			/*if (popup.win.document.readyState == "complete") res(popup);
+			else popup.win.addEventListener("load", () => res(popup));*/
+			res(popup)
+		});
 	},
 	destroy(popup: Popup) {
 		this.popups.delete(popup);
 		clearInterval(popup.interval);
-		(popup.win as any).killed = true;
-		popup.win.close();
+		const win = popup.win;
+		win.moveTo(0, 0);
+		win.resizeTo(1, 1);
+		win.document.documentElement.innerHTML = `<html><head></head><body></body></html>`;
+		popupCache.push(win);
+		obstacles.delete(popup);
 	},
 };
 let lastTick = Date.now();
@@ -28,9 +47,16 @@ const globalTicker = () => {
 	if (delta < 50) return;
 	lastTick = Date.now();
 	for (const ticker of tickers) ticker(delta);
-	for (const popup of popupMananger.popups) popup.runTick(delta);
+	for (const popup of popupManager.popups) popup.runTick(delta);
+	for (const waiter of waiters)
+		if (Date.now() > waiter.time) {
+			waiter.cb();
+			waiters.delete(waiter);
+		}
 };
-export const setup = () => setInterval(() => globalTicker());
+export const setup = () => {
+	setInterval(() => globalTicker(), 50);
+};
 const createPopup = (x: number, y: number, width: number, height: number) => {
 	const win = open("about:blank", "_blank", `popup,toolbar=no,menubar=no,left=${x},top=${y},width=${width},height=${height}`);
 	if (!win) throw new Error("Popups not allowed");
@@ -38,15 +64,21 @@ const createPopup = (x: number, y: number, width: number, height: number) => {
 	<body?></body?>`;
 	return win;
 };
+export const popupCache: Window[] = [];
+export const createCache = () => {
+	for (let i = 0; i < 10; i++) popupCache.push(createPopup(0, 0, 1, 1));
+};
 interface PopupOptions {
 	fixedSize: boolean;
 	fixedPosition: boolean;
 	showBackground: boolean;
+	allowClose: boolean;
 }
 const defaultOptions: PopupOptions = {
 	fixedSize: true,
 	fixedPosition: true,
 	showBackground: true,
+	allowClose: false,
 };
 export class Popup {
 	win!: Window;
@@ -58,6 +90,7 @@ export class Popup {
 	interval!: number;
 	#onSetup?: () => void;
 	#onTick?: (delta: number) => void;
+	#onClose?: () => void;
 	constructor(x: number, y: number, width: number, height: number, options: Partial<PopupOptions> = {}) {
 		this.options = { ...defaultOptions, ...options } as PopupOptions;
 		this.#x = x;
@@ -66,36 +99,58 @@ export class Popup {
 		this.#height = height;
 		this.setupWindow();
 	}
+	obstacle() {
+		obstacles.add(this);
+		return this;
+	}
 	setup(cb: (popup: Popup) => void) {
 		this.#onSetup = cb.bind(this, this);
 		cb(this);
 		return this;
 	}
-	tick(cb: (popup: Popup, delta: number) => void,) {
+	tick(cb: (popup: Popup, delta: number) => void) {
 		this.#onTick = cb.bind(this, this);
 		return this;
 	}
-	setupWindow() {
-		this.win = createPopup(this.#x, this.#y, this.#width, this.#height);
-		this.interval = this.win.setInterval(() => globalTicker());
+	close(cb: (popup: Popup) => void) {
+		this.#onClose = cb.bind(this, this);
+		return this;
+	}
+	setupWindow(allowCache: boolean = true) {
+		if (allowCache && popupCache.length) {
+			const cached = popupCache.pop()!;
+			cached.document.documentElement.innerHTML = `<html><head></head><body></body></html>`;
+			cached.moveTo(this.#x, this.#y);
+			cached.resizeTo(this.#width, this.#height);
+			cached.focus();
+			this.win = cached;
+		} else this.win = createPopup(this.#x, this.#y, this.#width, this.#height);
+		this.interval = this.win.setInterval(() => globalTicker(), 50);
+		this.win.document.body.style.margin = "0";
+		this.win.document.body.style.padding = "0";
 		if (this.options.showBackground) {
 			this.win.document.body.style.backgroundImage = `url("/img/background.png")`;
 			this.win.document.body.style.backgroundSize = `${screenWidth}px ${screenHeight}px`;
 			this.win.document.body.style.backgroundRepeat = `no-repeat`;
+			console.log(this.win.document.documentElement.innerHTML)
 		}
+		createTempTicker((t, stop) => {
+			this.move(this.#x, this.#y);
+			if (t > 200) stop();
+		});
 	}
 
 	get width() {
 		return this.win.outerWidth;
 	}
 	set width(value: number) {
-		this.resize(value, this.height);
+		this.resize(value, this.#height);
 	}
 	get height() {
 		return this.win.outerHeight;
 	}
 	set height(value: number) {
-		this.resize(this.width, value);
+		this.resize(this.#width, value);
 	}
 	resize(width: number, height: number) {
 		this.#width = width;
@@ -111,34 +166,37 @@ export class Popup {
 		return this.win.screenX;
 	}
 	set x(value: number) {
-		this.move(value, this.y);
+		this.move(value, this.#y);
 	}
 	get y() {
 		return this.win.screenY;
 	}
 	set y(value: number) {
-		this.move(this.x, value);
+		this.move(this.#x, value);
 	}
 
 	runTick(delta: number) {
-		if ((this.win as any).killed) return;
 		if (this.win.closed) {
-			clearInterval(this.interval);
-			this.setupWindow();
-			this.#onSetup?.();
-			this.win.moveTo(this.#x, this.#y);
-			this.win.resizeBy(this.#width, this.#height);
+			if (!this.options.allowClose) {
+				clearInterval(this.interval);
+				this.setupWindow(false);
+				this.#onSetup?.();
+				this.win.moveTo(this.#x, this.#y);
+				this.win.resizeBy(this.#width, this.#height);
+			}
+			this.#onClose?.();
+			popupCache.push(createPopup(0, 0, 1, 1));
 		}
 		this.#onTick?.(delta);
 		if (this.options.showBackground) {
-			this.win.document.body.style.backgroundPosition = `${-this.x - screenX - 7}px ${-this.y + 56 - pageOffsetY}px`;
+			this.win.document.body.style.backgroundPosition = `${-this.x - screenX - 7}px ${-this.y - pageOffsetY}px`;
 		}
 		if (this.options.fixedPosition) {
 			if (Math.abs(this.win.screenX - this.#x) > 2 || Math.abs(this.win.screenY - this.#y) > 2)
 				this.win.moveTo(this.#x, this.#y);
 		} else {
-			this.#x = this.win.screenX;
-			this.#y = this.win.screenY;
+			//this.#x = this.win.screenX;
+			//this.#y = this.win.screenY;
 		}
 		if (this.options.fixedSize) {
 			if (this.win.outerWidth !== this.#width || this.win.outerHeight !== this.#height)
