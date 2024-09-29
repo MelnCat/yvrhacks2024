@@ -1,14 +1,24 @@
+import { playerData } from "../game";
 import { createTempTicker, popupManager, wait } from "../popup";
 import { lerp } from "../util";
 
 export const startBattle1 = async () => {
 	await sweepAttack();
+	if (playerData.health <= 0) return;
+	playerData.rounds++;
 	await wait(500);
 	await spikesAttack();
+	if (playerData.health <= 0) return;
+	playerData.rounds++;
 	await wait(500);
 	await horAttack();
+	if (playerData.health <= 0) return;
+	playerData.rounds++;
 	await wait(500);
 	await vertAttack();
+	if (playerData.health <= 0) return;
+	playerData.rounds++;
+	await startBattle1();
 };
 
 const horAttack = async () => {
@@ -93,23 +103,23 @@ const sweepAttack = async () => {
 	await wait(500);
 	for (let i = 0; i < 2; i++) {
 		await createTempTicker((t, stop) => {
-			topLeft.x = lerp(t / 1000, 0, screen.width / 2,)
-			bottomRight.x = lerp(t / 1000, screen.width / 2, 0)
+			topLeft.x = lerp(t / 1000, 100, screen.width / 2,)
+			bottomRight.x = lerp(t / 1000, screen.width / 2, 100)
 			if (t > 1000) stop();
 		});
 		await createTempTicker((t, stop) => {
-			topLeft.y = lerp(t / 1000, 0, screen.height / 2)
-			bottomRight.y = lerp(t / 1000, screen.height / 2, 0)
+			topLeft.y = lerp(t / 1000, 100, screen.height / 2)
+			bottomRight.y = lerp(t / 1000, screen.height / 2, 100)
 			if (t > 1000) stop();
 		});
 		await createTempTicker((t, stop) => {
-			bottomRight.x = lerp(t / 1000, 0, screen.width / 2,)
-			topLeft.x = lerp(t / 1000, screen.width / 2, 0)
+			bottomRight.x = lerp(t / 1000, 100, screen.width / 2,)
+			topLeft.x = lerp(t / 1000, screen.width / 2, 100)
 			if (t > 1000) stop();
 		});
 		await createTempTicker((t, stop) => {
-			bottomRight.y = lerp(t / 1000, 0, screen.height / 2)
-			topLeft.y = lerp(t / 1000, screen.height / 2, 0)
+			bottomRight.y = lerp(t / 1000, 100, screen.height / 2)
+			topLeft.y = lerp(t / 1000, screen.height / 2, 100)
 			if (t > 1000) stop();
 		});
 	}
